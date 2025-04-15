@@ -118,32 +118,49 @@ class InsuranceData:
     def _create_sample_data(self) -> pd.DataFrame:
         """
         Creates a sample DataFrame with insurance data for development and testing.
+        Includes all columns required by the schema.
 
         Returns:
         -------
         pd.DataFrame
             Sample DataFrame with insurance data.
         """
-        logging.info("Creating sample insurance data")
+        logging.info("Creating sample insurance data with all required columns")
+
+        # Create sample data with 100 records to have enough for train/test split
+        num_samples = 100
+
+        # Generate sample data with all required columns from schema.yaml
         sample_data = {
-            "Gender": ["Male", "Female", "Male", "Female", "Male"],
-            "Age": [25, 30, 35, 40, 45],
-            "Driving_License": [1, 1, 1, 1, 1],
-            "Region_Code": [28, 28, 28, 28, 28],
-            "Previously_Insured": [0, 0, 1, 0, 1],
-            "Vehicle_Age": [
-                "< 1 Year",
-                "1-2 Year",
-                "> 2 Years",
-                "1-2 Year",
-                "> 2 Years",
-            ],
-            "Vehicle_Damage": ["Yes", "No", "Yes", "Yes", "No"],
-            "Annual_Premium": [35000, 40000, 45000, 50000, 55000],
-            "Policy_Sales_Channel": [152, 152, 152, 152, 152],
-            "Vintage": [10, 20, 30, 40, 50],
-            "Response": [1, 0, 1, 0, 1],
+            "id": list(range(1, num_samples + 1)),
+            "Gender": np.random.choice(["Male", "Female"], size=num_samples),
+            "Age": np.random.randint(18, 70, size=num_samples),
+            "Driving_License": np.random.choice([0, 1], size=num_samples, p=[0.05, 0.95]),
+            "Region_Code": np.random.uniform(1.0, 50.0, size=num_samples),
+            "Previously_Insured": np.random.choice([0, 1], size=num_samples),
+            "Vehicle_Age": np.random.choice(["< 1 Year", "1-2 Year", "> 2 Years"], size=num_samples),
+            "Vehicle_Damage": np.random.choice(["Yes", "No"], size=num_samples),
+            "Annual_Premium": np.random.uniform(20000.0, 60000.0, size=num_samples),
+            "Policy_Sales_Channel": np.random.uniform(100.0, 200.0, size=num_samples),
+            "Vintage": np.random.randint(1, 100, size=num_samples),
+            "Response": np.random.choice([0, 1], size=num_samples, p=[0.7, 0.3]),  # Imbalanced target
         }
+
         df = pd.DataFrame(sample_data)
-        logging.info(f"Created sample data with {len(df)} records")
+
+        # Convert columns to appropriate types as per schema
+        df['Gender'] = df['Gender'].astype('category')
+        df['Vehicle_Age'] = df['Vehicle_Age'].astype('category')
+        df['Vehicle_Damage'] = df['Vehicle_Damage'].astype('category')
+        df['id'] = df['id'].astype('int')
+        df['Age'] = df['Age'].astype('int')
+        df['Driving_License'] = df['Driving_License'].astype('int')
+        df['Previously_Insured'] = df['Previously_Insured'].astype('int')
+        df['Vintage'] = df['Vintage'].astype('int')
+        df['Response'] = df['Response'].astype('int')
+        df['Region_Code'] = df['Region_Code'].astype('float')
+        df['Annual_Premium'] = df['Annual_Premium'].astype('float')
+        df['Policy_Sales_Channel'] = df['Policy_Sales_Channel'].astype('float')
+
+        logging.info(f"Created sample data with {len(df)} records and columns: {df.columns.tolist()}")
         return df
