@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bharat Insurance - Vehicle Insurance Prediction</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="logo">
+                <i class="fas fa-car-crash"></i>
+                <span>Bharat Insurance</span>
+            </div>
+            <nav>
+                <ul>
+                    <li class="active"><a href="/"><i class="fas fa-home"></i> Dashboard</a></li>
+                    <li><a href="/train"><i class="fas fa-cogs"></i> Train Model</a></li>
+                    <li><a href="#"><i class="fas fa-chart-line"></i> Analytics</a></li>
+                    <li><a href="#"><i class="fas fa-question-circle"></i> Help</a></li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <p>© 2025 Bharat Insurance</p>
+                <p>Powered by ML-Ops | Made in India</p>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <header>
+                <h1><i class="fas fa-car"></i> Vehicle Insurance Prediction <span class="india-flag">🇮🇳</span></h1>
+                <div class="header-actions">
+                    <a href="/train" class="btn btn-secondary"><i class="fas fa-sync-alt"></i> Train Model</a>
+                </div>
+            </header>
+
+            <div class="content-wrapper">
+                <div class="card">
+                    <div class="card-header">
+                        <h2><i class="fas fa-clipboard-list"></i> Customer Information</h2>
+                        <p>Enter the details below to predict insurance interest</p>
+                    </div>
+                    <div class="card-body">
+                        <form method="post" action="/" class="prediction-form">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="Gender">Gender</label>
+                                    <select id="Gender" name="Gender" required>
+                                        <option value="1">Male</option>
+                                        <option value="0">Female</option>
+                                    </select>
+                                    <i class="fas fa-user form-icon"></i>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="Age">Age</label>
+                                    <input type="number" id="Age" name="Age" min="18" max="100" required>
+                                    <i class="fas fa-birthday-cake form-icon"></i>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="Driving_License">Driving License</label>
+                                    <select id="Driving_License" name="Driving_License" required>
+                                        <option value="1">Yes</option>
+                                        <option value="0">No</option>
+                                    </select>
+                                    <i class="fas fa-id-card form-icon"></i>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="Region_Code">Region Code <i class="fas fa-info-circle tooltip-icon" title="Geographic code representing customer's region in India"></i></label>
+                                    <select id="Region_Code" name="Region_Code" required>
+                                        <option value="28.0">Region 28 - North India</option>
+                                        <option value="3.0">Region 3 - South India</option>
+                                        <option value="8.0">Region 8 - West India</option>
+                                        <option value="36.0">Region 36 - East India</option>
+                                        <option value="41.0">Region 41 - Central India</option>
+                                        <option value="11.0">Region 11 - Metro Cities</option>
+                                        <option value="16.0">Region 16 - Tier 2 Cities</option>
+                                        <option value="19.0">Region 19 - Rural Areas</option>
+                                        <option value="23.0">Region 23 - Other</option>
+                                    </select>
+                                    <i class="fas fa-map-marker-alt form-icon"></i>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="Previously_Insured">Previously Insured</label>
+                                    <select id="Previously_Insured" name="Previously_Insured" required>
+                                        <option value="1">Yes</option>
+                                        <option value="0">No</option>
+                                    </select>
+                                    <i class="fas fa-shield-alt form-icon"></i>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="Annual_Premium">Annual Premium (₹)</label>
+                                    <input type="number" step="0.01" id="Annual_Premium" name="Annual_Premium" required>
+                                    <i class="fas fa-rupee-sign form-icon"></i>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="Policy_Sales_Channel">Sales Channel</label>
+                                    <select id="Policy_Sales_Channel" name="Policy_Sales_Channel" required>
+                                        <option value="1">Direct - Company Office</option>
+                                        <option value="2">Direct - Company Website</option>
+                                        <option value="3">Agent - Individual</option>
+                                        <option value="4">Agent - Corporate</option>
+                                        <option value="6">Bancassurance - Bank Partner</option>
+                                        <option value="7">Bancassurance - Financial Institution</option>
+                                        <option value="9">Broker</option>
+                                        <option value="12">Online Aggregator</option>
+                                        <option value="13">Mobile App</option>
+                                        <option value="14">Telesales</option>
+                                        <option value="19">Point of Sale (POS)</option>
+                                        <option value="26">Other</option>
+                                    </select>
+                                    <i class="fas fa-store form-icon"></i>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="Vintage">Vintage (days) <i class="fas fa-info-circle tooltip-icon" title="Number of days the customer has been associated with the company (must be positive)"></i></label>
+                                    <input type="number" id="Vintage" name="Vintage" min="0" placeholder="Enter a positive value" required>
+                                    <i class="fas fa-calendar-alt form-icon"></i>
+                                    <small class="form-hint">Must be a positive value</small>
+                                </div>
+                            </div>
+
+                            <div class="form-divider">
+                                <span>Vehicle Information</span>
+                            </div>
+
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="Vehicle_Age_lt_1_Year">Vehicle Age < 1 Year</label>
+                                    <select id="Vehicle_Age_lt_1_Year" name="Vehicle_Age_lt_1_Year" required>
+                                        <option value="1">Yes</option>
+                                        <option value="0">No</option>
+                                    </select>
+                                    <i class="fas fa-car form-icon"></i>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="Vehicle_Age_gt_2_Years">Vehicle Age > 2 Years</label>
+                                    <select id="Vehicle_Age_gt_2_Years" name="Vehicle_Age_gt_2_Years" required>
+                                        <option value="1">Yes</option>
+                                        <option value="0">No</option>
+                                    </select>
+                                    <i class="fas fa-car-side form-icon"></i>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="Vehicle_Damage_Yes">Vehicle Damage</label>
+                                    <select id="Vehicle_Damage_Yes" name="Vehicle_Damage_Yes" required>
+                                        <option value="1">Yes</option>
+                                        <option value="0">No</option>
+                                    </select>
+                                    <i class="fas fa-car-crash form-icon"></i>
+                                </div>
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="reset" class="btn btn-outline"><i class="fas fa-undo"></i> Reset</button>
+                                <button type="submit" class="btn btn-primary"><i class="fas fa-calculator"></i> Predict</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                {% if context and context != "Rendering" %}
+                <div class="card result-card {% if context == 'Response-Yes' %}positive{% elif context == 'Response-No' %}negative{% endif %}">
+                    <div class="card-header">
+                        <h2><i class="fas fa-chart-pie"></i> Prediction Result</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="result-container">
+                            <div class="result-icon">
+                                {% if context == "Response-Yes" %}
+                                <i class="fas fa-check-circle"></i>
+                                {% elif context == "Response-No" %}
+                                <i class="fas fa-times-circle"></i>
+                                {% else %}
+                                <i class="fas fa-info-circle"></i>
+                                {% endif %}
+                            </div>
+                            <div class="result-text">
+                                <h3>{{ context }}</h3>
+                                {% if context == "Response-Yes" %}
+                                <p>The customer is likely to be interested in vehicle insurance.</p>
+                                <div class="recommendation-box success">
+                                    <h4><i class="fas fa-lightbulb"></i> Recommendation</h4>
+                                    <p>Consider offering a special discount or highlighting comprehensive coverage benefits to increase conversion chances.</p>
+                                </div>
+                                {% elif context == "Response-No" %}
+                                <p>The customer is unlikely to be interested in vehicle insurance.</p>
+                                <div class="recommendation-box warning">
+                                    <h4><i class="fas fa-lightbulb"></i> Recommendation</h4>
+                                    <p>Consider offering a lower premium or highlighting the basic coverage benefits to generate interest.</p>
+                                </div>
+                                {% else %}
+                                <p>{{ context }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

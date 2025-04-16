@@ -39,7 +39,7 @@ class LocalInsuranceEstimator:
             if not self.is_model_present():
                 logging.warning(f"Model not found at {self.model_path}")
                 return None
-                
+
             return load_object(self.model_path)
         except Exception as e:
             raise MyException(f"Error loading model from {self.model_path}: {str(e)}", sys)
@@ -49,12 +49,17 @@ class LocalInsuranceEstimator:
         Make predictions using the loaded model
         """
         try:
+            # Add an 'id' column if it doesn't exist
+            if 'id' not in dataframe.columns:
+                dataframe['id'] = 0  # Add a dummy id column
+                logging.info("Added dummy 'id' column to dataframe for prediction")
+
             if self.loaded_model is None:
                 self.loaded_model = self.load_model()
                 if self.loaded_model is None:
                     logging.warning("No model available for prediction")
                     return None
-                    
+
             return self.loaded_model.predict(dataframe=dataframe)
         except Exception as e:
             raise MyException(f"Error during prediction: {str(e)}", sys)

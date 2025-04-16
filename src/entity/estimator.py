@@ -38,6 +38,17 @@ class MyModel:
         try:
             logging.info("Starting prediction process.")
 
+            # Check for required columns
+            required_columns = ['id']
+            missing_columns = [col for col in required_columns if col not in dataframe.columns]
+
+            if missing_columns:
+                logging.warning(f"Missing columns: {missing_columns}")
+                # Add missing columns with default values
+                for col in missing_columns:
+                    dataframe[col] = 0
+                logging.info(f"Added missing columns with default values: {missing_columns}")
+
             # Step 1: Apply scaling transformations using the pre-trained preprocessing object
             transformed_feature = self.preprocessing_object.transform(dataframe)
 

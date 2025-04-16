@@ -59,8 +59,13 @@ class InsuranceEstimator:
         :return:
         """
         try:
+            # Add an 'id' column if it doesn't exist
+            if 'id' not in dataframe.columns:
+                dataframe['id'] = 0  # Add a dummy id column
+
             if self.loaded_model is None:
                 self.loaded_model = self.load_model()
+
             return self.loaded_model.predict(dataframe=dataframe)
         except Exception as e:
             raise MyException(e, sys)
