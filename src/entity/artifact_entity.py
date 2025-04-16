@@ -34,14 +34,14 @@ class ModelTrainerArtifact:
     metric_artifact: ClassificationMetricArtifact
 
 
-# @dataclass
-# class ModelEvaluationArtifact:
-#     is_model_accepted:bool
-#     changed_accuracy:float
-#     s3_model_path:str
-#     trained_model_path:str
+@dataclass
+class ModelEvaluationArtifact:
+    is_model_accepted:bool
+    changed_accuracy:float
+    s3_model_path:str
+    trained_model_path:str
 
-# @dataclass
-# class ModelPusherArtifact:
-#     bucket_name:str
-#     s3_model_path:str
+@dataclass
+class ModelPusherArtifact:
+    bucket_name:str
+    s3_model_path:str

@@ -1,3 +1,8 @@
+# Load environment variables from .env file
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 # Apply patch for scikit-learn deprecation warnings
 from src.utils.sklearn_patch import apply_sklearn_patches
 
