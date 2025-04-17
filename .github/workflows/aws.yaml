@@ -31,11 +31,24 @@ jobs:
           ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
           IMAGE_TAG: latest
         run: |
-          # Build the Docker image
-          echo "Building Docker image..."
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          # Print debug information
+          echo "ECR Registry: $ECR_REGISTRY"
+          echo "ECR Repository: $ECR_REPOSITORY"
+          echo "Image Tag: $IMAGE_TAG"
 
-          # Push the Docker image
+          # Check if ECR repository exists, create if it doesn't
+          echo "Checking if ECR repository exists..."
+          aws ecr describe-repositories --repository-names $ECR_REPOSITORY || aws ecr create-repository --repository-name $ECR_REPOSITORY
+
+          # Build the Docker image with detailed output
+          echo "Building Docker image..."
+          docker build --no-cache -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+
+          # Verify the image was built
+          echo "Verifying Docker image..."
+          docker images | grep $ECR_REPOSITORY
+
+          # Push the Docker image with detailed output
           echo "Pushing Docker image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
