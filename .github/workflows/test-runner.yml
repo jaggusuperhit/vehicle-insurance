@@ -1,0 +1,15 @@
+name: Test Runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: self-hosted
+    steps:
+      - name: Simple Test
+        run: |
+          echo "Hello from the runner!"
+          hostname
+          whoami
+          pwd
