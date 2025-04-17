@@ -1,0 +1,352 @@
+name: Production CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly run on Sunday at midnight
+  workflow_dispatch:  # Allow manual triggering
+
+env:
+  ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
+  AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  test:
+    name: Test Application
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov flake8
+
+      - name: Lint with flake8
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Run unit tests with coverage
+        run: |
+          pytest --cov=src --cov-report=xml
+
+      - name: Upload coverage report
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false
+
+      - name: Test Docker build
+        run: |
+          docker build -t vehicle-insurance:test .
+
+      - name: Run Docker container
+        run: |
+          # Run container with testing environment
+          docker run -d --name test-container -e ENVIRONMENT="testing" -p 5050:5050 vehicle-insurance:test
+          sleep 10  # Wait for container to start
+
+      - name: Check container health
+        run: |
+          # Check if container is running
+          if [ "$(docker inspect -f {{.State.Running}} test-container)" = "true" ]; then
+            echo "Container is running"
+          else
+            echo "Container is not running"
+            docker logs test-container
+            exit 1
+          fi
+
+          # Check health endpoint
+          HEALTH_STATUS=$(curl -s http://localhost:5050/health | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+          if [ "$HEALTH_STATUS" = "healthy" ]; then
+            echo "Health check passed"
+          else
+            echo "Health check failed"
+            curl -s http://localhost:5050/health
+            exit 1
+          fi
+
+      - name: Clean up
+        run: |
+          docker stop test-container
+          docker rm test-container
+
+  build:
+    name: Build and Push Docker Image
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          # Print debug information
+          echo "ECR Registry: $ECR_REGISTRY"
+          echo "ECR Repository: $ECR_REPOSITORY"
+          echo "Image Tag: $IMAGE_TAG"
+
+          # Check if ECR repository exists, create if it doesn't
+          echo "Checking if ECR repository exists..."
+          aws ecr describe-repositories --repository-names $ECR_REPOSITORY || aws ecr create-repository --repository-name $ECR_REPOSITORY
+
+          # Build the Docker image with detailed output
+          echo "Building Docker image..."
+          docker build --no-cache -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+          # Verify the image was built
+          echo "Verifying Docker image..."
+          docker images | grep $ECR_REPOSITORY
+
+          # Push the Docker image with detailed output
+          echo "Pushing Docker image to ECR..."
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+          # Set output for use in deployment job
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "registry=$ECR_REGISTRY" >> $GITHUB_OUTPUT
+
+      - name: Scan Docker image for vulnerabilities
+        run: |
+          # Install Trivy scanner
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          
+          # Scan the image
+          trivy image --exit-code 0 --severity HIGH,CRITICAL ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: build
+    runs-on: self-hosted
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Deploy to Staging
+        run: |
+          # Stop any existing container
+          echo "Stopping any existing containers..."
+          docker ps -q --filter "name=vehicle-insurance-staging" | grep -q . && docker stop $(docker ps -q --filter "name=vehicle-insurance-staging") && docker rm $(docker ps -aq --filter "name=vehicle-insurance-staging") || echo "No existing container found"
+
+          # Pull the latest image
+          echo "Pulling the latest image..."
+          docker pull "${{ steps.login-ecr.outputs.registry }}"/"${{ env.ECR_REPOSITORY }}":"${{ env.IMAGE_TAG }}"
+
+          # Run the new container
+          echo "Starting new container..."
+          docker run -d \
+            --name vehicle-insurance-staging \
+            -e AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+            -e AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+            -e AWS_DEFAULT_REGION="${{ env.AWS_REGION }}" \
+            -e MONGODB_URL="${{ secrets.MONGODB_URL }}" \
+            -e ENVIRONMENT="staging" \
+            -p 5051:5050 \
+            "${{ steps.login-ecr.outputs.registry }}"/"${{ env.ECR_REPOSITORY }}":"${{ env.IMAGE_TAG }}"
+
+      - name: Verify Staging Deployment
+        run: |
+          # Wait for container to start
+          sleep 10
+          
+          # Check if container is running
+          if [ "$(docker inspect -f {{.State.Running}} vehicle-insurance-staging)" = "true" ]; then
+            echo "Container is running"
+          else
+            echo "Container is not running"
+            docker logs vehicle-insurance-staging
+            exit 1
+          fi
+          
+          # Check health endpoint
+          HEALTH_STATUS=$(curl -s http://localhost:5051/health | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+          if [ "$HEALTH_STATUS" = "healthy" ]; then
+            echo "Health check passed"
+          else
+            echo "Health check failed"
+            curl -s http://localhost:5051/health
+            exit 1
+          fi
+
+  deploy-production:
+    name: Deploy to Production
+    needs: deploy-staging
+    runs-on: self-hosted
+    environment: 
+      name: production
+      url: http://${{ steps.get-ip.outputs.ip }}:5050
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Get EC2 Public IP
+        id: get-ip
+        run: |
+          echo "ip=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)" >> $GITHUB_OUTPUT
+
+      - name: Deploy to Production
+        run: |
+          # Stop any existing container
+          echo "Stopping any existing containers..."
+          docker ps -q --filter "name=vehicle-insurance" | grep -q . && docker stop $(docker ps -q --filter "name=vehicle-insurance") && docker rm $(docker ps -aq --filter "name=vehicle-insurance") || echo "No existing container found"
+
+          # Pull the latest image
+          echo "Pulling the latest image..."
+          docker pull "${{ steps.login-ecr.outputs.registry }}"/"${{ env.ECR_REPOSITORY }}":"${{ env.IMAGE_TAG }}"
+
+          # Run the new container
+          echo "Starting new container..."
+          docker run -d \
+            --name vehicle-insurance \
+            -e AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+            -e AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+            -e AWS_DEFAULT_REGION="${{ env.AWS_REGION }}" \
+            -e MONGODB_URL="${{ secrets.MONGODB_URL }}" \
+            -e ENVIRONMENT="production" \
+            -p 5050:5050 \
+            "${{ steps.login-ecr.outputs.registry }}"/"${{ env.ECR_REPOSITORY }}":"${{ env.IMAGE_TAG }}"
+
+      - name: Verify Production Deployment
+        run: |
+          # Wait for container to start
+          sleep 10
+          
+          # Check if container is running
+          if [ "$(docker inspect -f {{.State.Running}} vehicle-insurance)" = "true" ]; then
+            echo "Container is running"
+          else
+            echo "Container is not running"
+            docker logs vehicle-insurance
+            exit 1
+          fi
+          
+          # Check health endpoint
+          HEALTH_STATUS=$(curl -s http://localhost:5050/health | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+          if [ "$HEALTH_STATUS" = "healthy" ]; then
+            echo "Health check passed"
+          else
+            echo "Health check failed"
+            curl -s http://localhost:5050/health
+            exit 1
+          fi
+
+      - name: Send Deployment Notification
+        if: always()
+        run: |
+          DEPLOY_STATUS="${{ job.status }}"
+          echo "Deployment status: $DEPLOY_STATUS"
+          echo "Application URL: http://${{ steps.get-ip.outputs.ip }}:5050"
+          
+          # Here you could add code to send notifications via Slack, Email, etc.
+          # Example for Slack (would need to add SLACK_WEBHOOK_URL to secrets):
+          # if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+          #   curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"Deployment to production $DEPLOY_STATUS. URL: http://${{ steps.get-ip.outputs.ip }}:5050\"}" ${{ secrets.SLACK_WEBHOOK_URL }}
+          # fi
+
+  monitoring:
+    name: Setup Monitoring
+    needs: deploy-production
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Monitoring
+        run: |
+          # Check if Prometheus container is running
+          if [ "$(docker ps -q --filter name=prometheus)" ]; then
+            echo "Prometheus is already running"
+          else
+            echo "Setting up Prometheus..."
+            # Create prometheus config directory if it doesn't exist
+            mkdir -p /home/ubuntu/prometheus
+            
+            # Create a basic Prometheus configuration
+            cat > /home/ubuntu/prometheus/prometheus.yml << EOF
+            global:
+              scrape_interval: 15s
+            
+            scrape_configs:
+              - job_name: 'vehicle-insurance'
+                static_configs:
+                  - targets: ['localhost:5050']
+            EOF
+            
+            # Run Prometheus container
+            docker run -d \
+              --name prometheus \
+              -p 9090:9090 \
+              -v /home/ubuntu/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml \
+              prom/prometheus
+          fi
+          
+          # Check if Grafana container is running
+          if [ "$(docker ps -q --filter name=grafana)" ]; then
+            echo "Grafana is already running"
+          else
+            echo "Setting up Grafana..."
+            # Run Grafana container
+            docker run -d \
+              --name grafana \
+              -p 3000:3000 \
+              grafana/grafana
+          fi
+          
+          echo "Monitoring setup complete"
+          echo "Prometheus URL: http://localhost:9090"
+          echo "Grafana URL: http://localhost:3000 (default login: admin/admin)"

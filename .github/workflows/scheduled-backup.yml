@@ -1,0 +1,65 @@
+name: Scheduled Database Backup
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Run daily at midnight
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  backup:
+    name: Backup MongoDB
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+
+      - name: Check if S3 bucket exists
+        run: |
+          BUCKET_NAME="vehicle-insurance-backups"
+          if ! aws s3api head-bucket --bucket $BUCKET_NAME 2>/dev/null; then
+            echo "Creating S3 bucket for backups..."
+            aws s3api create-bucket --bucket $BUCKET_NAME --region ${{ secrets.AWS_DEFAULT_REGION }}
+            
+            # Enable versioning for the bucket
+            aws s3api put-bucket-versioning --bucket $BUCKET_NAME --versioning-configuration Status=Enabled
+            
+            # Set lifecycle policy to expire old backups after 30 days
+            aws s3api put-bucket-lifecycle-configuration --bucket $BUCKET_NAME --lifecycle-configuration '{
+              "Rules": [
+                {
+                  "ID": "ExpireOldBackups",
+                  "Status": "Enabled",
+                  "Prefix": "",
+                  "Expiration": {
+                    "Days": 30
+                  }
+                }
+              ]
+            }'
+          else
+            echo "Backup S3 bucket already exists"
+          fi
+
+      - name: Run backup script
+        run: |
+          chmod +x ./scripts/backup-mongodb.sh
+          MONGODB_URL="${{ secrets.MONGODB_URL }}" ./scripts/backup-mongodb.sh
+
+      - name: Send backup notification
+        if: always()
+        run: |
+          BACKUP_STATUS="${{ job.status }}"
+          echo "Backup status: $BACKUP_STATUS"
+          
+          # Here you could add code to send notifications via Slack, Email, etc.
+          # Example for Slack (would need to add SLACK_WEBHOOK_URL to secrets):
+          # if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+          #   curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"MongoDB backup $BACKUP_STATUS.\"}" ${{ secrets.SLACK_WEBHOOK_URL }}
+          # fi
