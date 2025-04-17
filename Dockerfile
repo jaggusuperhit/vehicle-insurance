@@ -19,18 +19,19 @@ RUN apt-get update && \
 # Copy requirements first for better caching
 COPY requirements.txt /app/
 
+# Copy application code first (needed for -e . installation)
+COPY . /app
+
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+RUN sed -i 's/-e \.\.\.\./-e ./' requirements.txt && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Create necessary directories
 RUN mkdir -p /app/artifact/production_model /app/data /app/sample_data
 
-# Copy sample data first
+# Copy sample data
 COPY data/data.csv /app/data/
 COPY sample_data/insurance_data.csv /app/sample_data/
-
-# Copy your application code
-COPY . /app
 
 # Expose the port FastAPI will run on
 EXPOSE 5050
