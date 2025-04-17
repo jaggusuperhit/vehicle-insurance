@@ -25,6 +25,7 @@ dill==0.3.7
 certifi==2023.7.22
 PyYAML==6.0.1
 from_root==1.0.2
+python-dotenv==1.0.0
 
 # ML specific
 imbalanced-learn==0.11.0
