@@ -8,6 +8,7 @@ import logging
 from src.configuration.mongo_db_connection import MongoDBClient
 from src.constants import DATABASE_NAME, COLLECTION_NAME
 from src.exception import MyException
+from src.utils.sample_data import get_sample_data
 
 
 class InsuranceData:
@@ -118,49 +119,37 @@ class InsuranceData:
     def _create_sample_data(self) -> pd.DataFrame:
         """
         Creates a sample DataFrame with insurance data for development and testing.
-        Includes all columns required by the schema.
+        Uses the get_sample_data utility which provides consistent sample data.
 
         Returns:
         -------
         pd.DataFrame
             Sample DataFrame with insurance data.
         """
-        logging.info("Creating sample insurance data with all required columns")
+        logging.info("Using sample data utility for testing/development")
 
-        # Create sample data with 100 records to have enough for train/test split
-        num_samples = 100
+        # Get sample data from utility
+        df = get_sample_data()
 
-        # Generate sample data with all required columns from schema.yaml
-        sample_data = {
-            "id": list(range(1, num_samples + 1)),
-            "Gender": np.random.choice(["Male", "Female"], size=num_samples),
-            "Age": np.random.randint(18, 70, size=num_samples),
-            "Driving_License": np.random.choice([0, 1], size=num_samples, p=[0.05, 0.95]),
-            "Region_Code": np.random.uniform(1.0, 50.0, size=num_samples),
-            "Previously_Insured": np.random.choice([0, 1], size=num_samples),
-            "Vehicle_Age": np.random.choice(["< 1 Year", "1-2 Year", "> 2 Years"], size=num_samples),
-            "Vehicle_Damage": np.random.choice(["Yes", "No"], size=num_samples),
-            "Annual_Premium": np.random.uniform(20000.0, 60000.0, size=num_samples),
-            "Policy_Sales_Channel": np.random.uniform(100.0, 200.0, size=num_samples),
-            "Vintage": np.random.randint(1, 100, size=num_samples),
-            "Response": np.random.choice([0, 1], size=num_samples, p=[0.7, 0.3]),  # Imbalanced target
-        }
+        # Ensure proper data types
+        if not df.empty:
+            try:
+                # Convert categorical columns
+                for col in ['Gender', 'Vehicle_Age', 'Vehicle_Damage']:
+                    if col in df.columns:
+                        df[col] = df[col].astype('category')
 
-        df = pd.DataFrame(sample_data)
+                # Convert integer columns
+                for col in ['id', 'Age', 'Driving_License', 'Previously_Insured', 'Vintage', 'Response']:
+                    if col in df.columns:
+                        df[col] = df[col].astype('int')
 
-        # Convert columns to appropriate types as per schema
-        df['Gender'] = df['Gender'].astype('category')
-        df['Vehicle_Age'] = df['Vehicle_Age'].astype('category')
-        df['Vehicle_Damage'] = df['Vehicle_Damage'].astype('category')
-        df['id'] = df['id'].astype('int')
-        df['Age'] = df['Age'].astype('int')
-        df['Driving_License'] = df['Driving_License'].astype('int')
-        df['Previously_Insured'] = df['Previously_Insured'].astype('int')
-        df['Vintage'] = df['Vintage'].astype('int')
-        df['Response'] = df['Response'].astype('int')
-        df['Region_Code'] = df['Region_Code'].astype('float')
-        df['Annual_Premium'] = df['Annual_Premium'].astype('float')
-        df['Policy_Sales_Channel'] = df['Policy_Sales_Channel'].astype('float')
+                # Convert float columns
+                for col in ['Region_Code', 'Annual_Premium', 'Policy_Sales_Channel']:
+                    if col in df.columns:
+                        df[col] = df[col].astype('float')
+            except Exception as e:
+                logging.warning(f"Error converting data types: {str(e)}")
 
-        logging.info(f"Created sample data with {len(df)} records and columns: {df.columns.tolist()}")
+        logging.info(f"Using sample data with {len(df)} records and columns: {df.columns.tolist()}")
         return df

@@ -1,3 +1,7 @@
+import os
+from datetime import datetime
+from typing import Optional
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -6,15 +10,17 @@ from fastapi.templating import Jinja2Templates
 from starlette.responses import HTMLResponse, RedirectResponse
 from uvicorn import run as app_run
 
-from typing import Optional
-
 # Importing constants and pipeline modules from the project
 from src.constants import APP_HOST, APP_PORT
 from src.pipeline.prediction_pipeline import VehicleData, VehicleDataClassifier
 from src.pipeline.training_pipeline import TrainPipeline
 
 # Initialize FastAPI application
-app = FastAPI()
+app = FastAPI(
+    title="Vehicle Insurance Prediction",
+    description="API for predicting customer interest in vehicle insurance",
+    version="1.0.0"
+)
 
 # Mount the 'static' directory for serving static files (like CSS)
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -146,6 +152,44 @@ async def predictRouteClient(request: Request):
     except Exception as e:
         return {"status": False, "error": f"{e}"}
 
+# Health check endpoint for monitoring
+@app.get("/health")
+async def health_check():
+    """
+    Health check endpoint for monitoring the application status
+    """
+    try:
+        # Check if we can connect to MongoDB
+        mongo_status = "OK"
+        try:
+            from pymongo import MongoClient
+            mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017/")
+            client = MongoClient(mongodb_url, serverSelectionTimeoutMS=1000)
+            client.server_info()  # Will raise an exception if cannot connect
+        except Exception as e:
+            mongo_status = f"Error: {str(e)}"
+
+        # Check if model files exist
+        from src.constants import ARTIFACT_DIR
+        local_model_path = os.path.join(ARTIFACT_DIR, "production_model", "model.pkl")
+        model_status = "OK" if os.path.exists(local_model_path) else "Not found"
+
+        return {
+            "status": "healthy",
+            "timestamp": str(datetime.now()),
+            "environment": os.getenv("ENVIRONMENT", "development"),
+            "services": {
+                "mongodb": mongo_status,
+                "model": model_status
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": str(datetime.now())
+        }
+
 # Main entry point to start the FastAPI server
 if __name__ == "__main__":
     import webbrowser
@@ -157,10 +201,11 @@ if __name__ == "__main__":
         time.sleep(1.5)  # Wait for the server to start
         webbrowser.open(f"http://{APP_HOST}:{APP_PORT}")
 
-    # Start browser in a separate thread
-    threading.Thread(target=open_browser).start()
+    # Start browser in a separate thread (only in development mode)
+    if os.getenv("ENVIRONMENT", "development") == "development":
+        threading.Thread(target=open_browser).start()
 
     # Start the FastAPI server
     print(f"\n🚀 Starting server at http://{APP_HOST}:{APP_PORT}")
-    print("✨ UI will open automatically in your default browser...")
+    print(f"✨ Environment: {os.getenv('ENVIRONMENT', 'development')}")
     app_run(app, host=APP_HOST, port=APP_PORT)

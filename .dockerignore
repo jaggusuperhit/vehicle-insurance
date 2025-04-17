@@ -1,11 +1,63 @@
-artifact
-venv
-env
+# Git
+.git
 .gitignore
-logs
+.github
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+src.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+veh-ins/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Jupyter Notebook
+.ipynb_checkpoints
+notebook/
+
+# Logs
+logs/
+*.log
+
+# Docker
+.dockerignore
+
+# AWS
+.aws/
+
+# Unnecessary files
 template.py
 demo.py
 README.md
 LICENSE
-src.egg.-info
-notebook
+
+# Exclude everything in the artifact directory except the production_model
+artifact/*
+!artifact/production_model/
+!artifact/production_model/model.pkl

@@ -1,8 +1,9 @@
-name: Deploy Application Docker Image to EC2 instance
+name: Deploy Vehicle Insurance Prediction App to EC2
 
 on:
   push:
     branches: [main]
+  workflow_dispatch: # Allow manual triggering
 
 jobs:
   Continuous-Integration:
@@ -30,9 +31,16 @@ jobs:
           ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
           IMAGE_TAG: latest
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .  
+          # Build the Docker image
+          echo "Building Docker image..."
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+
+          # Push the Docker image
+          echo "Pushing Docker image to ECR..."
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+          # Set output for use in deployment job (using new GitHub Actions syntax)
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
   Continuous-Deployment:
     needs: Continuous-Integration
@@ -54,4 +62,39 @@ jobs:
 
       - name: Run Docker Image to serve users
         run: |
-          docker run -d -e AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" -e AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" -e AWS_DEFAULT_REGION="${{ secrets.AWS_DEFAULT_REGION }}" -e MONGODB_URL="${{ secrets.MONGODB_URL }}" -p 5000:5000 "${{ steps.login-ecr.outputs.registry }}"/"${{ secrets.ECR_REPO }}":latest
+          # Stop any existing container
+          echo "Stopping any existing containers..."
+          docker ps -q --filter "name=vehicle-insurance" | grep -q . && docker stop $(docker ps -q --filter "name=vehicle-insurance") && docker rm $(docker ps -aq --filter "name=vehicle-insurance") || echo "No existing container found"
+
+          # Pull the latest image
+          echo "Pulling the latest image..."
+          docker pull "${{ steps.login-ecr.outputs.registry }}"/"${{ secrets.ECR_REPO }}":latest
+
+          # Run the new container
+          echo "Starting new container..."
+
+          # Check if MONGODB_URL secret exists
+          if [[ "${{ secrets.MONGODB_URL }}" != "" ]]; then
+            echo "Using provided MongoDB URL from secrets"
+            docker run -d \
+              --name vehicle-insurance \
+              -e AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+              -e AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+              -e AWS_DEFAULT_REGION="${{ secrets.AWS_DEFAULT_REGION }}" \
+              -e MONGODB_URL="${{ secrets.MONGODB_URL }}" \
+              -e ENVIRONMENT="production" \
+              -p 5050:5050 \
+              "${{ steps.login-ecr.outputs.registry }}"/"${{ secrets.ECR_REPO }}":latest
+          else
+            echo "No MongoDB URL provided, using sample data"
+            docker run -d \
+              --name vehicle-insurance \
+              -e AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID }}" \
+              -e AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY }}" \
+              -e AWS_DEFAULT_REGION="${{ secrets.AWS_DEFAULT_REGION }}" \
+              -e ENVIRONMENT="testing" \
+              -p 5050:5050 \
+              "${{ steps.login-ecr.outputs.registry }}"/"${{ secrets.ECR_REPO }}":latest
+          fi
+
+          echo "Container started successfully!"
